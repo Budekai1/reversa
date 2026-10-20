@@ -606,7 +606,7 @@ function mudarAba(nome){
   if(nome === 'validacao-final') gerarValidacaoFinal();
 }
 
-// --- ABA 1: UPLOAD CSV ---
+// --- ABA 1: UPLOAD CSV (COM CONSOLIDAÇÃO / SOMA POR SKU + ENDEREÇO DESTINO) ---
 function importarUploadCsv(input) {
   if (!input.files.length) return;
   lerArquivo(input.files[0], json => {
@@ -615,8 +615,10 @@ function importarUploadCsv(input) {
       input.value = '';
       return;
     }
-    STORE.uploadCsv = [];
+    
+    const mapaAgrupado = new Map();
     let ignorados = 0;
+    let totalLidos = 0;
 
     json.forEach(linha => {
       const statusItem = norm(val(linha, ['STATUS', 'SITUACAO', 'SITUAÇÃO']));
@@ -628,30 +630,45 @@ function importarUploadCsv(input) {
       }
 
       const sku = String(val(linha, ['SKU', 'CODIGO', 'CÓDIGO', 'PRODUTO', 'CÓDIGO DO PRODUTO', 'COD PRODUTO']) || '').trim();
-      const quantidade = String(val(linha, ['QTD', 'QUANTIDADE', 'ESTOQUE', 'SALDO', 'QUANT.']) || '1').trim();
       const endDestino = norm(val(linha, ['DESTINO', 'END. DESTINO', 'END DESTINO', 'ENDEREÇO DESTINO', 'ENDERECO DESTINO', 'ENDEREÇO', 'ENDERECO', 'LOCAL']));
-      const serial = String(val(linha, ['SERIAL', 'AWB', 'LOTE INDÚSTRIA', 'LOTE INDUSTRIA', 'RASTREIO']) || '').trim().replace(/="([^"]+)"/g, '$1');
+      
+      if (!sku && !endDestino) return;
+
+      const qtdBruta = String(val(linha, ['QTD', 'QUANTIDADE', 'ESTOQUE', 'SALDO', 'QUANT.']) || '1').replace(',', '.').trim();
+      const qtdNum = Number(qtdBruta) > 0 ? Number(qtdBruta) : 1;
       
       const dataBruta = val(linha, ['DATA', 'DT', 'DATA HORA', 'DATA/HORA']);
       const dataLimpa = extrairApenasData(dataBruta);
+      const serial = String(val(linha, ['SERIAL', 'AWB', 'LOTE INDÚSTRIA', 'LOTE INDUSTRIA', 'RASTREIO']) || '').trim().replace(/="([^"]+)"/g, '$1');
 
-      if (!sku && !endDestino) return;
+      totalLidos++;
+      const chave = `${sku}__${endDestino}`;
 
-      STORE.uploadCsv.push({
-        sku: sku || '—',
-        quantidade: quantidade === '' ? '1' : quantidade,
-        endDestino: endDestino || '—',
-        data: dataLimpa,
-        serial: serial,
-        tipo: tipoItem,
-        status: statusItem
-      });
+      if (mapaAgrupado.has(chave)) {
+        const itemExistente = mapaAgrupado.get(chave);
+        itemExistente.quantidade += qtdNum;
+      } else {
+        mapaAgrupado.set(chave, {
+          sku: sku || '—',
+          quantidade: qtdNum,
+          endDestino: endDestino || '—',
+          data: dataLimpa,
+          serial: serial,
+          tipo: tipoItem,
+          status: statusItem
+        });
+      }
     });
+
+    STORE.uploadCsv = Array.from(mapaAgrupado.values()).map(item => ({
+      ...item,
+      quantidade: String(item.quantidade)
+    }));
 
     renderUploadCsv();
     gerarConcatenar();
     gerarValidacaoFinal();
-    toast(`Importação concluída! ${STORE.uploadCsv.length} itens BOM & FINALIZACAO carregados (${ignorados} ignorados).`, 'success');
+    toast(`Importação concluída! ${totalLidos} registros somados em ${STORE.uploadCsv.length} itens únicos (${ignorados} ignorados).`, 'success');
     input.value = '';
   });
 }
@@ -680,7 +697,7 @@ function renderUploadCsv() {
   tbody.innerHTML = filtrados.map(item => `
     <tr>
       <td><strong>${item.sku}</strong></td>
-      <td>${item.quantidade}</td>
+      <td><strong>${item.quantidade}</strong></td>
       <td><strong>${item.endDestino}</strong></td>
       <td>${item.tipo}</td>
       <td><span style="color:var(--success); font-weight:700;">${item.status}</span></td>
@@ -697,8 +714,6 @@ function baixarUploadExcel() {
     "SKU": item.sku,
     "Quantidade": item.quantidade,
     "End. Destino": item.endDestino,
-    "Data": item.data,
-    "Serial": item.serial,
     "Tipo": item.tipo,
     "Status": item.status
   }));
@@ -706,7 +721,7 @@ function baixarUploadExcel() {
   toast('Planilha baixada com sucesso!', 'success');
 }
 
-// --- ABA 2: CONCATENAR (Mantendo dados internos intactos para o arquivo TXT) ---
+// --- ABA 2: CONCATENAR (GERADO A PARTIR DOS REGISTROS AGRUPADOS/SOMADOS) ---
 function gerarConcatenar(){
   STORE.concatenar = [];
   STORE.uploadCsv.forEach(item => {
@@ -716,7 +731,7 @@ function gerarConcatenar(){
         endereco: item.endDestino,
         estoque: item.quantidade,
         data: item.data || '01/02/2200',
-        serial: item.serial || ''
+        serial: ''
       }));
     }
   });
@@ -876,7 +891,7 @@ function baixarValidacaoFinalExcel() {
 }
 
 function salvarHistorico() {
-  const dadosUpload = STORE.uploadCsv.map(u => ({ "SKU": u.sku, "Quantidade": u.quantidade, "End. Destino": u.endDestino, "Data": u.data, "Serial": u.serial, "Tipo": u.tipo, "Status": u.status }));
+  const dadosUpload = STORE.uploadCsv.map(u => ({ "SKU": u.sku, "Quantidade": u.quantidade, "End. Destino": u.endDestino, "Tipo": u.tipo, "Status": u.status }));
   const dadosConcatenados = STORE.concatenar.map(c => c.raw);
   const abasParaExcel = [
     { nome: "UploadCSV_BOM", data: dadosUpload.length ? dadosUpload : [{ Status: "Sem dados" }] },
