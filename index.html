@@ -222,7 +222,7 @@ tr:hover td { background: var(--table-hover); }
   box-shadow: var(--shadow-lg); 
   font-size: 0.88rem; 
   font-weight: 500; 
-  color: var(--text);
+  color: var(--text); 
   display: flex; 
   align-items: center; 
   gap: 12px; 
@@ -276,8 +276,6 @@ tr:hover td { background: var(--table-hover); }
               <th>SKU</th>
               <th>Quantidade</th>
               <th>End. Destino</th>
-              <th>Data</th>
-              <th>Serial</th>
               <th>Tipo</th>
               <th>Status</th>
             </tr>
@@ -301,7 +299,7 @@ tr:hover td { background: var(--table-hover); }
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Concatenada (Codigo | Endereço | Estoque | Data | Serial)</th></tr></thead>
+          <thead><tr><th>Concatenada (Codigo | Endereço | Estoque)</th></tr></thead>
           <tbody id="tbodyConcatenar"></tbody>
         </table>
       </div>
@@ -465,14 +463,12 @@ function normCab(t){
 function extrairApenasData(texto) {
   if (!texto) return '01/02/2200';
   let s = String(texto).trim();
-  // Se contiver espaço ou vírgula (ex: "15/10/2026, 15:53:44" ou "15/10/2026 15:53:44")
   if (s.includes(',')) {
     s = s.split(',')[0].trim();
   }
   if (s.includes(' ')) {
     s = s.split(' ')[0].trim();
   }
-  // Validação simples para ver se tem formato de data
   if (s.length >= 8 && s.includes('/')) {
     return s;
   }
@@ -636,7 +632,6 @@ function importarUploadCsv(input) {
       const endDestino = norm(val(linha, ['DESTINO', 'END. DESTINO', 'END DESTINO', 'ENDEREÇO DESTINO', 'ENDERECO DESTINO', 'ENDEREÇO', 'ENDERECO', 'LOCAL']));
       const serial = String(val(linha, ['SERIAL', 'AWB', 'LOTE INDÚSTRIA', 'LOTE INDUSTRIA', 'RASTREIO']) || '').trim().replace(/="([^"]+)"/g, '$1');
       
-      // Pega e limpa a data extraindo estritamente apenas DD/MM/AAAA
       const dataBruta = val(linha, ['DATA', 'DT', 'DATA HORA', 'DATA/HORA']);
       const dataLimpa = extrairApenasData(dataBruta);
 
@@ -672,14 +667,13 @@ function renderUploadCsv() {
     ? STORE.uploadCsv.filter(item =>
         norm(item.sku).includes(busca) ||
         norm(item.quantidade).includes(busca) ||
-        norm(item.endDestino).includes(busca) ||
-        norm(item.data).includes(busca)
+        norm(item.endDestino).includes(busca)
       )
     : STORE.uploadCsv;
 
   if (cnt) cnt.textContent = filtrados.length + ' registros';
   if (!filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">Nenhum arquivo carregado. Importe .CSV</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-msg">Nenhum arquivo carregado. Importe .CSV</td></tr>';
     return;
   }
 
@@ -688,8 +682,6 @@ function renderUploadCsv() {
       <td><strong>${item.sku}</strong></td>
       <td>${item.quantidade}</td>
       <td><strong>${item.endDestino}</strong></td>
-      <td>${item.data}</td>
-      <td><code>${item.serial || '—'}</code></td>
       <td>${item.tipo}</td>
       <td><span style="color:var(--success); font-weight:700;">${item.status}</span></td>
     </tr>
@@ -714,7 +706,7 @@ function baixarUploadExcel() {
   toast('Planilha baixada com sucesso!', 'success');
 }
 
-// --- ABA 2: CONCATENAR (Com Apenas Data e Serial) ---
+// --- ABA 2: CONCATENAR (Mantendo dados internos intactos para o arquivo TXT) ---
 function gerarConcatenar(){
   STORE.concatenar = [];
   STORE.uploadCsv.forEach(item => {
