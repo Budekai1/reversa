@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema WMS - Concatenação e Validação</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0b0f19;
+  --surface: #131b2e;
+  --sub-surface: #0f172a;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: rgba(37, 99, 235, 0.12);
+  --accent-red: #dc2626;
+  --accent-red-hover: #b91c1c;
+  --accent-red-light: rgba(220, 38, 38, 0.12);
+  --text: #f1f5f9;
+  --muted: #94a3b8;
+  --border: #1e293b;
+  --title-color: #60a5fa;
+  --table-hover: #1a2538;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.5);
+  --radius: 7px;
+}
+
+body.light-mode {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --sub-surface: #f1f5f9;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #cbd5e1;
+  --title-color: #1d4ed8;
+  --table-hover: #f1f5f9;
+  --primary-light: rgba(37, 99, 235, 0.08);
+  --accent-red-light: rgba(220, 38, 38, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; letter-spacing: .005em; transition: background 0.2s ease, color 0.2s ease; }
+
+header { 
+  background: var(--surface); 
+  border-bottom: 2px solid var(--border); 
+  padding: 14px 24px; 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  box-shadow: var(--shadow-sm);
+  z-index: 20;
+}
+header h1 { font-size: 1.2rem; font-weight: 700; color: var(--title-color); display: flex; align-items: center; gap: 10px; flex: 1; }
+.logo { font-size: 1.4rem; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: var(--primary); color: #fff; }
+
+.hbtn { 
+  background: var(--surface); 
+  border: 1px solid var(--border); 
+  color: var(--text); 
+  padding: 8px 14px; 
+  border-radius: var(--radius); 
+  font-size: 0.82rem; 
+  font-weight: 600; 
+  cursor: pointer; 
+  display: inline-flex; 
+  align-items: center; 
+  gap: 6px; 
+  transition: all 0.2s ease; 
+  box-shadow: var(--shadow-sm);
+}
+.hbtn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--title-color); transform: translateY(-1px); }
+.hbtn.success { background: rgba(22, 163, 74, 0.1); color: #16a34a; border-color: rgba(22, 163, 74, 0.3); }
+body:not(.light-mode) .hbtn.success { color: #4ade80; }
+.hbtn.success:hover { background: rgba(22, 163, 74, 0.2); }
+.hbtn.danger { background: var(--accent-red-light); color: var(--accent-red); border-color: rgba(220, 38, 38, 0.3); }
+body:not(.light-mode) .hbtn.danger { color: #f87171; }
+.hbtn.danger:hover { background: rgba(220, 38, 38, 0.2); }
+
+nav { 
+  background: var(--surface); 
+  border-bottom: 1px solid var(--border); 
+  display: flex; 
+  padding: 0 20px; 
+  gap: 6px; 
+  overflow-x: auto; 
+}
+nav button { 
+  background: none; 
+  border: none; 
+  padding: 14px 18px; 
+  font-size: 0.85rem; 
+  font-weight: 600; 
+  color: var(--muted); 
+  cursor: pointer; 
+  border-bottom: 3px solid transparent; 
+  white-space: nowrap; 
+  transition: all 0.2s; 
+  position: relative;
+}
+nav button:hover { color: var(--title-color); background: rgba(125, 125, 125, 0.05); }
+nav button.active { color: var(--title-color); border-bottom-color: var(--accent-red); background: rgba(125, 125, 125, 0.07); }
+
+nav button.active::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent-red);
+  border-radius: 2px 2px 0 0;
+}
+
+main { flex: 1; overflow: hidden; padding: 20px; display: flex; background: transparent; }
+.tab { display: none; width: 100%; height: 100%; flex-direction: column; }
+.tab.active { display: flex; }
+
+.card { 
+  background: var(--surface); 
+  border: 1px solid var(--border); 
+  border-radius: var(--radius); 
+  display: flex; 
+  flex-direction: column; 
+  height: 100%; 
+  overflow: hidden; 
+  box-shadow: var(--shadow-md); 
+  position: relative;
+}
+.card h2 { 
+  font-size: 1.05rem; 
+  font-weight: 700; 
+  color: var(--title-color); 
+  padding: 18px 20px; 
+  border-bottom: 1px solid var(--border); 
+  display: flex; 
+  align-items: center; 
+  gap: 10px; 
+  background: var(--sub-surface);
+}
+.cnt { background: var(--primary-light); padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; color: var(--title-color); border: 1px solid rgba(37, 99, 235, 0.3); font-weight: 600; }
+
+.toolbar { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; background: var(--sub-surface); flex-wrap: wrap; }
+.toolbar label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+.toolbar select, .toolbar input[type="search"] { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; font-size: 0.85rem; color: var(--text); outline: none; transition: border-color 0.2s; }
+.toolbar select:focus, .toolbar input[type="search"]:focus { border-color: var(--primary); }
+.toolbar input[type="search"] { width: 240px; }
+.spacer { flex: 1; }
+
+.btn { 
+  background: var(--primary); 
+  color: #fff; 
+  border: none; 
+  padding: 8px 16px; 
+  border-radius: var(--radius); 
+  font-size: 0.85rem; 
+  font-weight: 700; 
+  cursor: pointer; 
+  display: inline-flex; 
+  align-items: center; 
+  gap: 6px; 
+  box-shadow: var(--shadow-sm); 
+  transition: all 0.2s ease;
+}
+.btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.btn.ghost:hover { background: var(--bg); border-color: var(--primary); color: var(--title-color); }
+.btn.green { background: var(--success); color: #fff; }
+.btn.green:hover { background: #15803d; }
+.btn.amber { background: var(--warning); color: #fff; }
+.btn.amber:hover { background: #b45309; }
+.btn.red { background: var(--accent-red); color: #fff; }
+.btn.red:hover { background: var(--accent-red-hover); }
+.btn.sm { padding: 5px 10px; font-size: 0.78rem; }
+
+.table-wrap { flex: 1; overflow: auto; width: 100%; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+th { background: var(--sub-surface); position: sticky; top: 0; z-index: 10; padding: 12px 20px; font-weight: 700; color: var(--title-color); border-bottom: 2px solid var(--border); letter-spacing: 0.025em; }
+td { padding: 12px 20px; border-bottom: 1px solid var(--border); color: var(--text); }
+tr:hover td { background: var(--table-hover); }
+.empty-msg { text-align: center; color: var(--muted); padding: 40px !important; font-style: italic; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(2px); z-index: 200; display: none; opacity: 0; transition: opacity 0.3s ease; }
+.modal-overlay.show { display: block; opacity: 1; }
+
+.modal { 
+  position: fixed; 
+  top: 50%; 
+  left: 50%; 
+  transform: translate(-50%, -50%) scale(0.95); 
+  background: var(--surface); 
+  border-radius: 9px; 
+  padding: 24px; 
+  width: 90%; 
+  max-width: 440px; 
+  z-index: 201; 
+  box-shadow: var(--shadow-lg); 
+  transition: all 0.2s ease; 
+  opacity: 0; 
+  pointer-events: none; 
+  border: 1px solid var(--border); 
+}
+.modal-overlay.show .modal { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+.modal h3 { font-size: 1.2rem; margin-bottom: 10px; color: var(--title-color); font-weight: 700; }
+.modal p { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+.m-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+#toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 10px; }
+.toast { 
+  background: var(--surface); 
+  border: 1px solid var(--border); 
+  padding: 14px 18px; 
+  border-radius: var(--radius); 
+  box-shadow: var(--shadow-lg); 
+  font-size: 0.88rem; 
+  font-weight: 500; 
+  color: var(--text);
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  animation: slideIn 0.25s ease; 
+  max-width: 380px; 
+}
+.toast.success { border-left: 5px solid var(--success); }
+.toast.error { border-left: 5px solid var(--accent-red); }
+.toast.warning { border-left: 5px solid var(--warning); }
+.toast.info { border-left: 5px solid var(--primary); }
+
+@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo">📦</span> Reversa Armazenagem</h1>
+  <button class="hbtn" id="btnThemeToggle" onclick="alternarTema()" title="Alternar Modo Claro/Escuro">☀️ Modo Claro</button>
+  <button class="hbtn success" onclick="salvarHistorico()">💾 Baixar Histórico</button>
+  <button class="hbtn danger" onclick="confirmarZerar()">🗑️ Reiniciar</button>
+</header>
+
+<nav id="mainNav">
+  <button class="active" data-tab="upload-csv" onclick="mudarAba('upload-csv')">📂 Relatorio reversa</button>
+  <button data-tab="concatenar" onclick="mudarAba('concatenar')">🔗 Concatenar</button>
+  <button data-tab="validacao-final" onclick="mudarAba('validacao-final')">🔍 Validação Final</button>
+</nav>
+
+<main>
+  <!-- ABA 1: UPLOAD CSV -->
+  <section class="tab active" id="tab-upload-csv">
+    <div class="card">
+      <h2>📂 Relatorio reversa<span class="cnt" id="cntUploadCsv">0 registros</span></h2>
+      <div class="toolbar">
+        <input type="file" id="fileUploadCsv" accept=".csv,.xlsx,.xls" onchange="importarUploadCsv(this)" style="display:none">
+        <button class="btn" onclick="document.getElementById('fileUploadCsv').click()">📂 Importar .CSV</button>
+        <button class="btn amber" onclick="baixarUploadExcel()">📥 Baixar Planilha</button>
+        <div class="spacer"></div>
+        <input type="search" id="buscaUploadCsv" placeholder="🔍 Buscar SKU, Qtd ou End. Destino..." oninput="renderUploadCsv()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Quantidade</th>
+              <th>End. Destino</th>
+              <th>Data</th>
+              <th>Serial</th>
+              <th>Tipo</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyUploadCsv"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABA 2: CONCATENAR -->
+  <section class="tab" id="tab-concatenar">
+    <div class="card">
+      <h2>🔗 Concatenar <span class="cnt" id="cntConcatenar">0 registros</span></h2>
+      <div class="toolbar">
+        <button class="btn green" onclick="gerarConcatenar()">🔄 Atualizar Concatenar</button>
+        <button class="btn amber" onclick="baixarConcatenarTxt()">📥 Baixar INV_v2JDU</button>
+        <button class="btn ghost" onclick="baixarLocaisTxt()">📥 Baixar LOCAIS</button>
+        <div class="spacer"></div>
+        <input type="search" id="buscaConcatenar" placeholder="🔍 Buscar na concatenação..." oninput="renderConcatenar()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Concatenada (Codigo | Endereço | Estoque | Data | Serial)</th></tr></thead>
+          <tbody id="tbodyConcatenar"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABA 3: VALIDAÇÃO FINAL -->
+  <section class="tab" id="tab-validacao-final">
+    <div class="card">
+      <h2>🔍 Validação Final <span class="cnt" id="cntValidacaoFinal">0 registros</span></h2>
+      <div class="toolbar">
+        <label>Status:</label>
+        <select id="filtroStatusValidacao" onchange="renderValidacaoFinal()">
+          <option value="">Todos</option>
+          <option value="NAO_SUBIU">Fora do senior</option>
+          <option value="SUBIU">No senior</option>
+        </select>
+        
+        <input type="file" id="fileEstoquePosSubida" accept=".csv,.xlsx,.xls" onchange="importarEstoquePosSubida(this)" style="display:none">
+        <button class="btn ghost" onclick="document.getElementById('fileEstoquePosSubida').click()">📂 Importar Estoque Atualizado (Senior)</button>
+        
+        <button class="btn green" onclick="gerarValidacaoFinal()">🔄 Executar Validação Final</button>
+        <button class="btn amber" onclick="baixarValidacaoFinalExcel()">📥 Baixar Relatório</button>
+        <div class="spacer"></div>
+        <input type="search" id="buscaValidacaoFinal" placeholder="🔍 Buscar SKU ou Status..." oninput="renderValidacaoFinal()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>ENDEREÇO PLANEJADO</th>
+              <th>ENDEREÇO NO SENIOR</th>
+              <th>STATUS DA VALIDAÇÃO</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyValidacaoFinal">
+            <tr><td colspan="4" class="empty-msg">Nenhuma validação executada.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-overlay" id="modalConfirm">
+  <div class="modal">
+    <h3 id="modalIcon">⚠️</h3>
+    <h3 id="modalTitle">Confirmar</h3>
+    <p id="modalMsg">Tem certeza?</p>
+    <div class="m-actions">
+      <button class="btn ghost" onclick="fecharModal()">Cancelar</button>
+      <button class="btn red" id="modalOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+
+<script>
+// --- SISTEMA DE TEMA (CLARO / ESCURO) ---
+const THEME_KEY = 'wms_theme_pref';
+
+function aplicarTema(tema) {
+  const btn = document.getElementById('btnThemeToggle');
+  if (tema === 'light') {
+    document.body.classList.add('light-mode');
+    if (btn) btn.innerHTML = '🌙 Modo Escuro';
+  } else {
+    document.body.classList.remove('light-mode');
+    if (btn) btn.innerHTML = '☀️ Modo Claro';
+  }
+}
+
+function alternarTema() {
+  const isLight = document.body.classList.contains('light-mode');
+  const novoTema = isLight ? 'dark' : 'light';
+  aplicarTema(novoTema);
+  try {
+    localStorage.setItem(THEME_KEY, novoTema);
+  } catch (e) {}
+  tocarSom('info');
+}
+
+function carregarTema() {
+  try {
+    const salvo = localStorage.getItem(THEME_KEY);
+    if (salvo) {
+      aplicarTema(salvo);
+      return;
+    }
+  } catch (e) {}
+  aplicarTema('dark');
+}
+
+// --- SISTEMA DE SOM NATIVO ---
+let audioCtx = null;
+function obterAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+function tocarSom(tipo) {
+  try {
+    const ctx = obterAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const agora = ctx.currentTime;
+    
+    if (tipo === 'success') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, agora);
+      gain.gain.setValueAtTime(0.08, agora);
+      gain.gain.exponentialRampToValueAtTime(0.001, agora + 0.08);
+      osc.start(agora);
+      osc.stop(agora + 0.08);
+    } else if (tipo === 'error') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, agora);
+      gain.gain.setValueAtTime(0.1, agora);
+      gain.gain.exponentialRampToValueAtTime(0.001, agora + 0.1);
+      osc.start(agora);
+      osc.stop(agora + 0.1);
+    } else {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, agora);
+      gain.gain.setValueAtTime(0.06, agora);
+      gain.gain.exponentialRampToValueAtTime(0.001, agora + 0.06);
+      osc.start(agora);
+      osc.stop(agora + 0.06);
+    }
+  } catch (e) {}
+}
+
+document.addEventListener('click', function unlockAudio() {
+  obterAudioContext();
+}, { once: true });
+
+const STORE = {
+  uploadCsv: [],
+  estoqueLocal: [],
+  concatenar: [],
+  validacaoFinal: []
+};
+
+function norm(t){
+  if(t === null || t === undefined) return '';
+  return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+}
+function normCab(t){
+  return norm(t).replace(/Ã/g,'A').replace(/Â/g,'A').replace(/º/g,'O').replace(/ª/g,'A').replace(/Þ/g,'P');
+}
+
+// Função robusta para extrair estritamente apenas a data (DD/MM/AAAA) ignorando horários
+function extrairApenasData(texto) {
+  if (!texto) return '01/02/2200';
+  let s = String(texto).trim();
+  // Se contiver espaço ou vírgula (ex: "15/10/2026, 15:53:44" ou "15/10/2026 15:53:44")
+  if (s.includes(',')) {
+    s = s.split(',')[0].trim();
+  }
+  if (s.includes(' ')) {
+    s = s.split(' ')[0].trim();
+  }
+  // Validação simples para ver se tem formato de data
+  if (s.length >= 8 && s.includes('/')) {
+    return s;
+  }
+  return s || '01/02/2200';
+}
+
+function toast(msg, tipo='info'){
+  tocarSom(tipo);
+  const icons = {success:'✅', error:'❌', info:'ℹ', warning:'⚠️'};
+  const c = document.getElementById('toast-container');
+  if(!c) return;
+  const el = document.createElement('div');
+  el.className = 'toast '+tipo;
+  el.innerHTML = '<span>'+(icons[tipo]||'ℹ')+'</span><span>'+msg+'</span>';
+  c.appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .3s';setTimeout(()=>el.remove(),300);},3500);
+}
+
+function lerArquivo(file, cb) {
+  const reader = new FileReader();
+  const limparJsonVazios = (json) => {
+    return json.map(linha => {
+      const novaLinha = {};
+      Object.keys(linha).forEach(k => {
+        if (k && !k.startsWith('__EMPTY')) {
+          novaLinha[k] = linha[k];
+        }
+      });
+      return novaLinha;
+    });
+  };
+
+  if (file.name.toLowerCase().endsWith('.csv')) {
+    reader.onload = e => {
+      try {
+        const text = e.target.result;
+        const wb = XLSX.read(text, { type: 'string', raw: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonBruto = XLSX.utils.sheet_to_json(ws, { defval: '', header: 'A' });
+        
+        let dadosTratados = jsonBruto;
+        if (jsonBruto.length > 0 && Object.keys(jsonBruto[0]).length === 1 && String(jsonBruto[0]['A']).includes(';')) {
+          const linhasCsv = text.split(/\r?\n/).filter(Boolean);
+          const cabecalho = linhasCsv[0].split(';').map(h => h.trim().replace(/^"|"$/g, ''));
+          dadosTratados = [];
+          for (let i = 1; i < linhasCsv.length; i++) {
+            const vals = linhasCsv[i].split(';');
+            const obj = {};
+            cabecalho.forEach((h, idx) => {
+              obj[h] = (vals[idx] !== undefined ? vals[idx] : '').trim().replace(/^"|"$/g, '');
+            });
+            dadosTratados.push(obj);
+          }
+        } else {
+          dadosTratados = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        }
+        cb(limparJsonVazios(dadosTratados));
+      } catch (err) {
+        toast('Erro ao ler arquivo CSV: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    reader.onload = e => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonBruto = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        cb(limparJsonVazios(jsonBruto));
+      } catch (err) {
+        toast('Erro ao ler arquivo Excel: ' + err.message, 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function acharColuna(linha, alias){
+  const keys = Object.keys(linha);
+  for(const a of alias){
+    for(const k of keys){
+      if(norm(k) === norm(a)) return k;
+    }
+  }
+  for(const a of alias){
+    for(const k of keys){
+      const na = norm(a);
+      const nk = norm(k);
+      if(na.length >= 3 && nk.includes(na)) return k;
+    }
+  }
+  return null;
+}
+
+function acharColunaFlex(linha, alias, padroes){
+  const keys = Object.keys(linha);
+  for(const a of alias){ for(const k of keys){ if(normCab(k) === normCab(a)) return k; } }
+  for(const p of padroes){ for(const k of keys){ if(normCab(k).includes(p)) return k; } }
+  return null;
+}
+function val(linha, alias){
+  const k = acharColuna(linha, alias);
+  return k ? linha[k] : '';
+}
+function baixarExcel(abas, filename){
+  const wb = XLSX.utils.book_new();
+  abas.forEach(a => {
+    const ws = XLSX.utils.json_to_sheet(a.data);
+    XLSX.utils.book_append_sheet(wb, ws, a.nome);
+  });
+  XLSX.writeFile(wb, filename);
+}
+
+let modalCallback = null;
+function abrirModal(title, msg, icon, cb){
+  tocarSom('warning');
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalMsg').textContent = msg;
+  document.getElementById('modalIcon').textContent = icon || '⚠️';
+  modalCallback = cb;
+  document.getElementById('modalConfirm').classList.add('show');
+}
+function fecharModal(){ document.getElementById('modalConfirm').classList.remove('show'); modalCallback = null; }
+const btnModalOk = document.getElementById('modalOk');
+if(btnModalOk) btnModalOk.onclick = () => { const cb = modalCallback; fecharModal(); if(cb) cb(); };
+
+function mudarAba(nome){
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const tabEl = document.getElementById('tab-'+nome);
+  if(tabEl) tabEl.classList.add('active');
+  document.querySelectorAll('#mainNav button').forEach(b => b.classList.toggle('active', b.dataset.tab === nome));
+  if(nome === 'upload-csv') renderUploadCsv();
+  if(nome === 'concatenar') gerarConcatenar();
+  if(nome === 'validacao-final') gerarValidacaoFinal();
+}
+
+// --- ABA 1: UPLOAD CSV ---
+function importarUploadCsv(input) {
+  if (!input.files.length) return;
+  lerArquivo(input.files[0], json => {
+    if (!json.length) {
+      toast('O arquivo enviado está vazio.', 'error');
+      input.value = '';
+      return;
+    }
+    STORE.uploadCsv = [];
+    let ignorados = 0;
+
+    json.forEach(linha => {
+      const statusItem = norm(val(linha, ['STATUS', 'SITUACAO', 'SITUAÇÃO']));
+      const tipoItem = norm(val(linha, ['TIPO', 'OPERACAO', 'OPERAÇÃO']));
+
+      if (statusItem !== 'BOM' || tipoItem !== 'FINALIZACAO') {
+        ignorados++;
+        return;
+      }
+
+      const sku = String(val(linha, ['SKU', 'CODIGO', 'CÓDIGO', 'PRODUTO', 'CÓDIGO DO PRODUTO', 'COD PRODUTO']) || '').trim();
+      const quantidade = String(val(linha, ['QTD', 'QUANTIDADE', 'ESTOQUE', 'SALDO', 'QUANT.']) || '1').trim();
+      const endDestino = norm(val(linha, ['DESTINO', 'END. DESTINO', 'END DESTINO', 'ENDEREÇO DESTINO', 'ENDERECO DESTINO', 'ENDEREÇO', 'ENDERECO', 'LOCAL']));
+      const serial = String(val(linha, ['SERIAL', 'AWB', 'LOTE INDÚSTRIA', 'LOTE INDUSTRIA', 'RASTREIO']) || '').trim().replace(/="([^"]+)"/g, '$1');
+      
+      // Pega e limpa a data extraindo estritamente apenas DD/MM/AAAA
+      const dataBruta = val(linha, ['DATA', 'DT', 'DATA HORA', 'DATA/HORA']);
+      const dataLimpa = extrairApenasData(dataBruta);
+
+      if (!sku && !endDestino) return;
+
+      STORE.uploadCsv.push({
+        sku: sku || '—',
+        quantidade: quantidade === '' ? '1' : quantidade,
+        endDestino: endDestino || '—',
+        data: dataLimpa,
+        serial: serial,
+        tipo: tipoItem,
+        status: statusItem
+      });
+    });
+
+    renderUploadCsv();
+    gerarConcatenar();
+    gerarValidacaoFinal();
+    toast(`Importação concluída! ${STORE.uploadCsv.length} itens BOM & FINALIZACAO carregados (${ignorados} ignorados).`, 'success');
+    input.value = '';
+  });
+}
+
+function renderUploadCsv() {
+  const buscaEl = document.getElementById('buscaUploadCsv');
+  const busca = buscaEl ? norm(buscaEl.value) : '';
+  const tbody = document.getElementById('tbodyUploadCsv');
+  const cnt = document.getElementById('cntUploadCsv');
+  if (!tbody) return;
+
+  const filtrados = busca
+    ? STORE.uploadCsv.filter(item =>
+        norm(item.sku).includes(busca) ||
+        norm(item.quantidade).includes(busca) ||
+        norm(item.endDestino).includes(busca) ||
+        norm(item.data).includes(busca)
+      )
+    : STORE.uploadCsv;
+
+  if (cnt) cnt.textContent = filtrados.length + ' registros';
+  if (!filtrados.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">Nenhum arquivo carregado. Importe .CSV</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtrados.map(item => `
+    <tr>
+      <td><strong>${item.sku}</strong></td>
+      <td>${item.quantidade}</td>
+      <td><strong>${item.endDestino}</strong></td>
+      <td>${item.data}</td>
+      <td><code>${item.serial || '—'}</code></td>
+      <td>${item.tipo}</td>
+      <td><span style="color:var(--success); font-weight:700;">${item.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+function baixarUploadExcel() {
+  if (!STORE.uploadCsv.length) {
+    toast('Nenhum dado na aba Upload CSV para baixar.', 'warning');
+    return;
+  }
+  const dados = STORE.uploadCsv.map(item => ({
+    "SKU": item.sku,
+    "Quantidade": item.quantidade,
+    "End. Destino": item.endDestino,
+    "Data": item.data,
+    "Serial": item.serial,
+    "Tipo": item.tipo,
+    "Status": item.status
+  }));
+  baixarExcel([{ nome: "Upload_BOM_Finalizacao", data: dados }], "itens_bom_finalizacao_wms.xlsx");
+  toast('Planilha baixada com sucesso!', 'success');
+}
+
+// --- ABA 2: CONCATENAR (Com Apenas Data e Serial) ---
+function gerarConcatenar(){
+  STORE.concatenar = [];
+  STORE.uploadCsv.forEach(item => {
+    if (item.endDestino && item.endDestino !== '—' && item.endDestino !== 'SEM POSIÇÃO DISPONÍVEL') {
+      STORE.concatenar.push(formatarLinhaConcatenada({
+        codigo: item.sku !== '—' ? item.sku : 'GERAL',
+        endereco: item.endDestino,
+        estoque: item.quantidade,
+        data: item.data || '01/02/2200',
+        serial: item.serial || ''
+      }));
+    }
+  });
+  renderConcatenar();
+}
+
+function formatarLinhaConcatenada(obj){
+  const c = String(obj.codigo || '').padEnd(25, ' ');
+  const e = String(obj.endereco || '').padEnd(31, ' ');
+  const q = String(obj.estoque || '').padEnd(10, ' ');
+  const d = String(obj.data || '').padEnd(12, ' ');
+  const s = String(obj.serial || '').padEnd(53, ' ');
+  return { texto: `${c}${e}${q}${d}${s}`, raw: obj };
+}
+
+function renderConcatenar(){
+  const buscaEl = document.getElementById('buscaConcatenar');
+  const busca = buscaEl ? norm(buscaEl.value) : '';
+  const tbody = document.getElementById('tbodyConcatenar');
+  const cnt = document.getElementById('cntConcatenar');
+  if(!tbody) return;
+  const filtrados = busca ? STORE.concatenar.filter(item => norm(item.texto).includes(busca)) : STORE.concatenar;
+  if(cnt) cnt.textContent = filtrados.length + ' registros';
+  if(!filtrados.length){ tbody.innerHTML = '<tr><td class="empty-msg">Nenhum registro concatenado. Importe os dados na aba "📂 Reversa".</td></tr>'; return; }
+  tbody.innerHTML = filtrados.map(item => `<tr><td><code style="font-family:monospace; font-size:.88rem; background:var(--sub-surface); color:var(--text); padding:6px 10px; display:block; white-space:pre; border-radius:4px; border:1px solid var(--border);">${item.texto}</code></td></tr>`).join('');
+}
+
+function baixarConcatenarTxt(){
+  if(!STORE.concatenar.length) gerarConcatenar();
+  if(!STORE.concatenar.length){ toast('Sem dados para gerar arquivo.', 'warning'); return; }
+  const linhas = STORE.concatenar.map(item => item.texto).join('\n');
+  const blob = new Blob([linhas], {type: 'text/plain;charset=utf-8'});
+  const hoje = new Date();
+  const nomeArquivo = `INV_v2JDU${String(hoje.getMonth() + 1).padStart(2, '0')}.${String(hoje.getDate()).padStart(2, '0')}.INVDET`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = nomeArquivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('Arquivo gerado com sucesso!', 'success');
+}
+
+function baixarLocaisTxt(){
+  if(!STORE.concatenar.length) gerarConcatenar();
+  if(!STORE.concatenar.length){ toast('Sem dados para gerar LOCAIS.TXT.', 'warning'); return; }
+  const locais = STORE.concatenar.map(item => item.raw.endereco).filter(Boolean).join('\n');
+  const blob = new Blob([locais], {type: 'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'LOCAIS.TXT';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('LOCAIS.TXT gerado!', 'success');
+}
+
+// --- ABA 3: VALIDAÇÃO FINAL ---
+function processarDadosEstoqueLocal(json){
+  if(!json.length) return;
+  const primeiraLinha = json[0];
+  const kLocal = acharColunaFlex(primeiraLinha, ['LOCAL','ENDEREÇO','ENDERECO','POSIÇÃO','POSICAO','DESTINO'], ['LOCAL','ENDERE']);
+  const kEstoque = acharColunaFlex(primeiraLinha, ['ESTOQUE (UN)','ESTOQUE','QUANTIDADE','QTD','SALDO'], ['ESTOQ','QTD']);
+  const kProduto = acharColunaFlex(primeiraLinha, ['CÓDIGO DO PRODUTO', 'CODIGO DO PRODUTO', 'COD PRODUTO', 'PRODUTO', 'SKU'], ['PRODUTO', 'COD', 'SKU']);
+  
+  STORE.estoqueLocal = [];
+  json.forEach(linha => {
+    STORE.estoqueLocal.push({
+      local: String(kLocal ? linha[kLocal] : ''),
+      estoque: String(kEstoque ? linha[kEstoque] : ''),
+      produto: String(kProduto ? linha[kProduto] : '')
+    });
+  });
+}
+
+function importarEstoquePosSubida(input) {
+  if (!input.files.length) return;
+  lerArquivo(input.files[0], json => {
+    if (!json.length) { toast('O arquivo enviado está vazio.', 'error'); input.value = ''; return; }
+    processarDadosEstoqueLocal(json);
+    gerarValidacaoFinal();
+    toast('Estoque atualizado e Validação Final realizada com sucesso!', 'success');
+    input.value = '';
+  });
+}
+
+function gerarValidacaoFinal() {
+  STORE.validacaoFinal = [];
+  const basePlanejada = STORE.uploadCsv.filter(item => String(item.quantidade).trim() !== '0');
+  if (!basePlanejada.length) { renderValidacaoFinal(); return; }
+  
+  basePlanejada.forEach(itemPlan => {
+    const skuPlanejado = itemPlan.sku;
+    if (!skuPlanejado || !itemPlan.endDestino || itemPlan.endDestino === '—') return;
+
+    const skuNorm = norm(skuPlanejado);
+    const itensEstoque = STORE.estoqueLocal.filter(e => norm(e.produto) === skuNorm);
+    
+    let enderecoSenior = '—';
+    let statusValidacao = 'Fora do Senior';
+
+    if (itensEstoque.length > 0) {
+      const itemMaisRecente = itensEstoque[itensEstoque.length - 1];
+      const itemCorrespondente = itensEstoque.find(e => norm(e.local) === norm(itemPlan.endDestino));
+      const itemFinal = itemCorrespondente || itemMaisRecente;
+      enderecoSenior = itemFinal.local;
+
+      if (norm(enderecoSenior) === norm(itemPlan.endDestino)) statusValidacao = 'No senior';
+      else statusValidacao = 'Divergência de Endereço no Senior';
+    }
+
+    STORE.validacaoFinal.push({
+      sku: skuPlanejado,
+      enderecoPlanejado: itemPlan.endDestino,
+      enderecoSenior: enderecoSenior,
+      status: statusValidacao
+    });
+  });
+  renderValidacaoFinal();
+}
+
+function renderValidacaoFinal() {
+  const buscaEl = document.getElementById('buscaValidacaoFinal');
+  const busca = buscaEl ? norm(buscaEl.value) : '';
+  const selStatus = document.getElementById('filtroStatusValidacao');
+  const statusFiltro = selStatus ? selStatus.value : '';
+  const tbody = document.getElementById('tbodyValidacaoFinal');
+  const cnt = document.getElementById('cntValidacaoFinal');
+  if(!tbody) return;
+  
+  let filtrados = busca ? STORE.validacaoFinal.filter(v =>
+    norm(v.sku).includes(busca) ||
+    norm(v.enderecoPlanejado).includes(busca) ||
+    norm(v.enderecoSenior).includes(busca) ||
+    norm(v.status).includes(busca)
+  ) : STORE.validacaoFinal;
+  if (statusFiltro === 'NAO_SUBIU') filtrados = filtrados.filter(v => norm(v.status).includes('FORA DO SENIOR') || norm(v.status).includes('DIVERGENCIA'));
+  else if (statusFiltro === 'SUBIU') filtrados = filtrados.filter(v => norm(v.status).includes('NO SENIOR'));
+  
+  if(cnt) cnt.textContent = filtrados.length + ' registros';
+  if(!filtrados.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">Nenhuma validação executada ou registros não encontrados.</td></tr>'; return; }
+  
+  tbody.innerHTML = filtrados.map(v => {
+    let textoStatus = v.status || 'Fora do Senior';
+    let isNoSenior = norm(textoStatus).includes('NO SENIOR') && !norm(textoStatus).includes('FORA');
+    let estilocss = isNoSenior 
+      ? 'color: #16a34a; font-weight: 800;' 
+      : 'color: #dc2626; font-weight: 800;';
+    return `<tr>
+      <td><strong>${v.sku}</strong></td>
+      <td>${v.enderecoPlanejado}</td>
+      <td><strong>${v.enderecoSenior}</strong></td>
+      <td><span style="${estilocss}">${textoStatus}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function baixarValidacaoFinalExcel() {
+  if(!STORE.validacaoFinal.length) { toast('Nenhum dado de validação para baixar.', 'warning'); return; }
+  const dados = STORE.validacaoFinal.map(v => ({ "SKU": v.sku, "ENDEREÇO PLANEJADO": v.enderecoPlanejado, "ENDEREÇO NO SENIOR": v.enderecoSenior, "STATUS DA VALIDAÇÃO": v.status }));
+  baixarExcel([{ nome: "Validacao Final", data: dados }], "relatorio_validacao_final.xlsx");
+  toast('Relatório de Validação Final baixado com sucesso!', 'success');
+}
+
+function salvarHistorico() {
+  const dadosUpload = STORE.uploadCsv.map(u => ({ "SKU": u.sku, "Quantidade": u.quantidade, "End. Destino": u.endDestino, "Data": u.data, "Serial": u.serial, "Tipo": u.tipo, "Status": u.status }));
+  const dadosConcatenados = STORE.concatenar.map(c => c.raw);
+  const abasParaExcel = [
+    { nome: "UploadCSV_BOM", data: dadosUpload.length ? dadosUpload : [{ Status: "Sem dados" }] },
+    { nome: "Concatenar", data: dadosConcatenados.length ? dadosConcatenados : [{ Status: "Sem dados" }] },
+    { nome: "ValidacaoFinal", data: STORE.validacaoFinal.length ? STORE.validacaoFinal : [{ Status: "Sem dados" }] }
+  ];
+  baixarExcel(abasParaExcel, "historico_wms_completo.xlsx");
+  
+  try {
+    const estadoGeral = {
+      uploadCsv: STORE.uploadCsv,
+      estoqueLocal: STORE.estoqueLocal,
+      concatenar: STORE.concatenar,
+      validacaoFinal: STORE.validacaoFinal
+    };
+    localStorage.setItem('wms_backup_geral', JSON.stringify(estadoGeral));
+  } catch(e) {}
+  toast('Histórico salvo e arquivo Excel baixado com sucesso!', 'success');
+}
+
+function confirmarZerar() {
+  abrirModal('Zerar Sistema', 'Tem certeza que deseja apagar todos os dados e reiniciar o sistema?', '🗑️', () => {
+    localStorage.removeItem('wms_backup_geral');
+    Object.keys(STORE).forEach(k => STORE[k] = []);
+    renderUploadCsv(); renderConcatenar(); renderValidacaoFinal();
+    toast('Sistema zerado com sucesso.', 'info');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  carregarTema();
+  try {
+    const backup = localStorage.getItem('wms_backup_geral');
+    if(backup) {
+      const dados = JSON.parse(backup);
+      Object.keys(dados).forEach(k => { if(STORE[k] !== undefined) STORE[k] = dados[k]; });
+      renderUploadCsv(); renderConcatenar(); renderValidacaoFinal();
+    } else {
+      renderUploadCsv(); renderConcatenar();
+    }
+  } catch(e) {
+    renderUploadCsv(); renderConcatenar();
+  }
+});
+</script>
+</body>
+</html>
